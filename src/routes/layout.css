@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cinzel+Decorative:wght@700&family=EB+Garamond:wght@400;500;600;700&family=IM+Fell+English&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -12,9 +12,9 @@
 }
 
 :root {
-  --font-display: "Cinzel", serif;
+  --font-display: "Lora", serif;
   --font-decor: "Cinzel Decorative", serif;
-  --font-body: "EB Garamond", serif;
+  --font-body: "Inter", sans-serif;
   --font-note: "IM Fell English", serif;
   --shadow-neo: 2px 2px 0px var(--primary);
 
@@ -103,9 +103,9 @@
 
   --radius: .625rem;
 
-  --font-display: "Cinzel", serif;
+  --font-display: "Lora", serif;
   --font-decor: "Cinzel Decorative", serif;
-  --font-body: "EB Garamond", serif;
+  --font-body: "Inter", sans-serif;
   --font-note: "IM Fell English", serif;
 
   --frame-radius: 46px 14px 46px 14px;
@@ -156,9 +156,9 @@
 }
 
 .dark .home-page {
-  ---font-display: "Cinzel", serif;
+  ---font-display: "Lora", serif;
   --font-decor: "Cinzel Decorative", serif;
-  --font-body: "EB Garamond", serif;
+  --font-body: "Inter", sans-serif;
   --font-note: "IM Fell English", serif;
   --shadow-neo: 2px 2px 0px var(--primary);
 
@@ -246,9 +246,9 @@
 
   --radius: .625rem;
 
-  --font-display: "Cinzel", serif;
+  --font-display: "Lora", serif;
   --font-decor: "Cinzel Decorative", serif;
-  --font-body: "EB Garamond", serif;
+  --font-body: "Inter", sans-serif;
   --font-note: "IM Fell English", serif;
 
   --frame-radius: 46px 14px 46px 14px;
@@ -330,6 +330,27 @@ body {
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Alchemize UI Theme Colors */
+  --color-plum: #31254B;
+  --color-plum-deep: #2B2042;
+  --color-ink: #1a1228;
+  --color-surface: #695592;
+  --color-surface-alt: #6E3D5A;
+  --color-cream: #fdf0d5;
+  --color-muted-alt: #AAA3C5;
+  --color-gold: #E98F43;
+  --color-gold-light: #f5a05a;
+  --color-gold-dark: #b86c2a;
+  --color-berry: #CB4A60;
+  --color-blossom: #E0A7AE;
+  --color-subtle: #726870;
+  --color-lavender: #9B82BC;
+  --color-mauve: #9F6A86;
+
+  /* Animations */
+  --animate-marquee: marquee-slide 32s linear infinite;
+  --animate-marquee-reverse: marquee-slide-reverse 32s linear infinite;
 }
 
 @layer base {
@@ -359,4 +380,95 @@ body {
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
+}/* ═══════════════════════════════════════════════════════════════
+   ALCHEMIZE — Hack Club YSWS Landing Page
+   Tailwind CSS v4 companion stylesheet
+   ---------------------------------------------------------------
+   Design tokens live in the <style type="text/tailwindcss"> @theme
+   block in index.html. This file only holds the bits that are
+   cleaner as plain CSS: keyframes + the asset-slot placeholder.
+   ═══════════════════════════════════════════════════════════════ */
+
+
+
+
+/* ──────────────────────────
+   ASSET SLOT PLACEHOLDER
+   (dashed box for future SVG/PNG art — utilities override it)
+   ────────────────────────── */
+@layer components {
+  .asset-slot {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--color-subtle, #726870);
+    border-radius: var(--radius-sm, 6px);
+    color: var(--color-muted, #AAA3C5);
+    font-size: 0.7rem;
+    opacity: 0.35;
+    overflow: hidden;
+  }
+}
+
+
+/* ──────────────────────────
+   MARQUEE KEYFRAMES
+   (consumed by animate-marquee / animate-marquee-reverse)
+   ────────────────────────── */
+@keyframes marquee-slide {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes marquee-slide-reverse {
+  from {
+    transform: translate3d(-50%, 0, 0);
+  }
+
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* ──────────────────────────
+   MARQUEE STYLING
+   ────────────────────────── */
+/* Track: flat, slightly lighter plum tone so it reads as a separate band */
+[data-marquee] {
+  background-color: #38295a;
+}
+
+/* Items: dotted border with smooth rounded corners */
+[data-marquee-track] > div > div {
+  padding: 14px 0 10px;
+  border: 2px dotted rgba(255, 255, 255, 0.35);
+  border-radius: 18px;
+  transition: border-color 0.3s ease;
+}
+
+[data-marquee-track] > div > div:hover {
+  border-color: rgba(255, 255, 255, 0.65);
+}
+
+/* --------------------------
+   LENIS SMOOTH SCROLL
+   (native CSS smooth-scroll must be off while Lenis is active)
+   -------------------------- */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.scroll-smooth.lenis {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
 }
