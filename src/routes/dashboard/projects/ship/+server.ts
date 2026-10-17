@@ -1,7 +1,7 @@
-import { redirect, type RequestHandler } from "@sveltejs/kit"
+import type { RequestHandler } from "@sveltejs/kit"
 import { BOT_AUTH } from "$env/static/private"
 import { START_DATE } from "$env/static/private"
-import { hackatimeAuthUrl } from "$lib/utils"
+import { filterLogs } from "$lib/utils.server"
 import type { Log } from "$lib/types"
 import { env } from "$env/dynamic/private"
 import { findHackatimeConflicts, getHackatimeTokenByEmail, getProjectById, patchProjectForShip, patchUserHackatime } from "$lib/db"
@@ -27,11 +27,36 @@ function parseLog(logJson: string): Log[] {
 		return [] as Log[]
 	}
 }
-const isUserIdv = async (email: string): Promise<boolean> => {
-	// Encoded: an email like "jane+alchemize@gmail.com" otherwise arrives as "jane alchemize@gmail.com"
-	const fetchRes = await fetch(`https://auth.hackclub.com/api/external/check?email=${encodeURIComponent(email)}`)
-	const data = await fetchRes.json()
-	return data.result === "verified_eligible"
+// null: Hack Club Auth couldn't be asked (down, timeout, unexpected response)
+const isUserIdv = async (email: string): Promise<boolean | null> => {
+	try {
+		// Encoded: an email like "jane+alchemize@gmail.com" otherwise arrives as "jane alchemize@gmail.com"
+		const fetchRes = await fetch(`https://auth.hackclub.com/api/external/check?email=${encodeURIComponent(email)}`)
+		if (!fetchRes.ok) {
+			console.error("Hack Club Auth eligibility check failed:", fetchRes.status)
+			return null
+		}
+		const data = await fetchRes.json()
+		return data.result === "verified_eligible"
+	} catch (error) {
+		console.error("Hack Club Auth eligibility check failed:", (error as Error).message)
+		return null
+	}
+}
+const notifyShip = async (body: { user_id: string, project_name: string, project_link: string | null }): Promise<{ ok: boolean, status?: number }> => {
+	try {
+		const botResponse = await fetch("https://notifications.alchemize.hackclub.com/ship", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${BOT_AUTH}`,
+			},
+			body: JSON.stringify(body),
+		})
+		return { ok: botResponse.ok, status: botResponse.status }
+	} catch {
+		return { ok: false }
+	}
 }
 export const POST: RequestHandler = async ({ request, locals }) => {
 	// Season window from SHIPPING_OPENS_AT / SHIPPING_CLOSES_AT (closed unless configured)
@@ -41,7 +66,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 	const userData = requireUserApi(locals)
 
-	const { recordId, changelog } = await request.json()
+	const { recordId, changelog } = await request.json().catch(() => ({}))
 	if (!recordId || !Number.isSafeInteger(Number(recordId))) {
 		return new Response("Missing required fields", { status: 400 })
 	}
@@ -94,11 +119,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		getHackatimeTokenByEmail(userData.email),
 		isUserIdv(userData.email)
 	])
+	if (idv === null) {
+		return new Response("Couldn't check your identity verification right now, please try again in a few minutes", { status: 503 })
+	}
 	if (!idv) {
 		return new Response("Your account is not verified or you are over 18, please contact #identity-help", { status: 403 })
 	}
 	if (!htToken) {
-		throw redirect(303, hackatimeAuthUrl)
+		// Called with fetch, so a redirect to Hackatime would only fail as a cross-origin request
+		return new Response("Please reload the dashboard and connect Hackatime again, then ship", { status: 400 })
 	}
 	if (projectData.fields.address === "null" || !projectData.fields.address) {
 		return new Response("Your Address is missing, please add it on auth.hackclub.com", { status: 400 })
@@ -144,40 +173,37 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 		return new Response("Failed to ship Project", { status: 500 })
 	}
-	// Notify only after the write has committed
-	const botResponse = await fetch("https://notifications.alchemize.hackclub.com/ship", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${BOT_AUTH}`,
-			},
-			body: JSON.stringify({
-				user_id: userData.slack_id,
-				project_name: projectData.fields.Name,
-				project_link: projectData.fields.code,
-			}),
-		})
-
-	if (!botResponse.ok) {
+	// Notify only after the write has committed. From here on the ship has happened, so a notification
+	// failure must not be reported as a failed ship.
+	const notification = await notifyShip({
+		user_id: userData.slack_id,
+		project_name: projectData.fields.Name,
+		project_link: projectData.fields.code,
+	})
+	// Same filtering as the page load: reviewer internal notes, justifications and names stay server side.
+	// Without it the client simply reloads the (filtered) project list.
+	let newLog: Log[] | undefined
+	try {
+		newLog = JSON.parse(filterLogs(JSON.stringify(updatedLog)))
+	} catch (error) {
+		console.error(`Failed to filter the log of project ${recordId} for the response:`, (error as Error).message)
+	}
+	if (!notification.ok) {
 		console.warn(`Failed to send notification to bot for record ${recordId}:`, {
-			status: botResponse.status,
-			statusText: botResponse.statusText,
+			status: notification.status,
 			timestamp: new Date().toISOString(),
 			slackId: userData.slack_id,
 			projectName: projectData.fields.Name,
 			projectLink: projectData.fields.code,
 		})
-		return new Response("Project shipped but failed to send notification", {
-			status: 207,
-		})
 	}
 	return new Response(
 		JSON.stringify({
-			message: "Project shipped successfully!",
-			newLog: updatedLog,
+			message: notification.ok ? "Project shipped successfully!" : "Project shipped, but the Slack notification failed",
+			newLog,
 			newStatus: `pending_${currentTime}`,
 		}),
-		{ status: 201 }
+		{ status: notification.ok ? 201 : 207, headers: { "Content-Type": "application/json" } }
 	)
 }
 export const GET: RequestHandler = async () => {

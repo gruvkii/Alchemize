@@ -13,6 +13,7 @@ import {
 	findHackatimeConflicts,
 } from "$lib/db"
 import { isHttpUrl } from "$lib/urls"
+import { isProjectType } from "$lib/projectTypes"
 import { checkImageUpload } from "$lib/server/uploads"
 import { fetchHackatimeProjects } from "$lib/server/hackatime"
 import type {
@@ -59,9 +60,13 @@ async function uploadScreenshot(file: File | null): Promise<string> {
 	return (await response.json()).url
 }
 // Checks shared by create and update; returns an error message for the user, or null
-const validateProjectLinks = (demo: string | null, code: string | null): string | null => {
+const validateProjectInput = (demo: string | null, code: string | null, type: string | null): string | null => {
 	if ((demo && !isHttpUrl(demo)) || (code && !isHttpUrl(code))) {
 		return "The demo and repository links must be http(s) URLs"
+	}
+	// Empty means "not chosen yet" (create) or "unchanged" (update)
+	if (type && !isProjectType(type)) {
+		return "Please choose a project type from the list"
 	}
 	return null
 }
@@ -89,9 +94,9 @@ export const actions = {
 		if (!screenshot.ok || !screenshot2.ok) {
 			return fail(400, { message: !screenshot.ok ? screenshot.message : (screenshot2 as { message: string }).message })
 		}
-		const linkError = validateProjectLinks(projectUrl, projectCode)
-		if (linkError) {
-			return fail(400, { message: linkError })
+		const inputError = validateProjectInput(projectUrl, projectCode, projectType)
+		if (inputError) {
+			return fail(400, { message: inputError })
 		}
 		if (hackatimeProject) {
 			const conflicts = await findHackatimeConflicts(email, hackatimeProject)
@@ -155,9 +160,9 @@ export const actions = {
 			return fail(400, { message: !screenshot.ok ? screenshot.message : (screenshot2 as { message: string }).message })
 		}
 
-		const linkError = validateProjectLinks(projectUrl, projectCode)
-		if (linkError) {
-			return fail(400, { message: linkError })
+		const inputError = validateProjectInput(projectUrl, projectCode, projectType)
+		if (inputError) {
+			return fail(400, { message: inputError })
 		}
 		// All checks run before uploading, so a refused edit never uploads screenshots
 		const current = await getProjectForEdit(recordId, email)

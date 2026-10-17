@@ -990,25 +990,36 @@ export const createOrder = async (orderData: any): Promise<DBResponse> => {
     }
 }
 export const getOrdersByEmail = async (email: string): Promise<DBResponse> => {
-    const orders = await db.select({
-        id: ordersTable.id,
-        orderItem: ordersTable.orderItem,
-        itemID: ordersTable.itemID,
-        qty: ordersTable.qty,
-        ordererEmail: ordersTable.ordererEmail,
-        status: ordersTable.status,
-        itemName: shopItemsTable.name,
-        cdnImage: shopItemsTable.cdnImage,
-        // Price paid; orders from before it was recorded fall back to the item's current price
-        priceHundredths: sql<number>`coalesce(${ordersTable.priceHundredths}, ${shopItemsTable.priceHundredths})`
-    }).from(ordersTable).where(eq(ordersTable.ordererEmail, email)).leftJoin(shopItemsTable, eq(ordersTable.itemID, shopItemsTable.itemID));
-    const records = orders.map(order => ({ id: order.id + "", fields: order }));
-    return {
-        ok: true,
-        status: 200,
-        json: async () => ({ records }),
-        text: async () => JSON.stringify({ records }),
-    } as DBResponse;
+    try {
+        const orders = await db.select({
+            id: ordersTable.id,
+            orderItem: ordersTable.orderItem,
+            itemID: ordersTable.itemID,
+            qty: ordersTable.qty,
+            ordererEmail: ordersTable.ordererEmail,
+            status: ordersTable.status,
+            itemName: shopItemsTable.name,
+            cdnImage: shopItemsTable.cdnImage,
+            // Price paid; orders from before it was recorded fall back to the item's current price
+            // (orders."priceHundredths" is added by script/migrations/2026-10-data-integrity.sql)
+            priceHundredths: sql<number>`coalesce(${ordersTable.priceHundredths}, ${shopItemsTable.priceHundredths})`
+        }).from(ordersTable).where(eq(ordersTable.ordererEmail, email)).leftJoin(shopItemsTable, eq(ordersTable.itemID, shopItemsTable.itemID));
+        const records = orders.map(order => ({ id: order.id + "", fields: order }));
+        return {
+            ok: true,
+            status: 200,
+            json: async () => ({ records }),
+            text: async () => JSON.stringify({ records }),
+        } as DBResponse;
+    } catch (error) {
+        console.error("Database read failed:", error);
+        return {
+            ok: false,
+            status: 500,
+            json: async () => ({ message: "Database read failed" }),
+            text: async () => JSON.stringify({ message: "Database read failed" }),
+        };
+    }
 }
 export const fetchAllItems = async (): Promise<DBResponse> => {
     //Soft Hides items with priority less than 0, so we can keep them in the database for record-keeping purposes without showing them in the shop

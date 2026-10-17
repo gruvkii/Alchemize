@@ -112,14 +112,30 @@
 		}
 	}
 
-	async function shipProject(changelog: string) {
+	// Ship endpoint errors are plain text; hooks (rate limit, maintenance) and SvelteKit errors are JSON {message}
+	function parseShipResponse(body: string): {
+		message?: string
+		newLog?: unknown
+		newStatus?: string
+	} {
+		try {
+			const parsed = JSON.parse(body)
+			if (parsed && typeof parsed === "object") return parsed
+		} catch {
+			// plain text
+		}
+		return { message: body }
+	}
+
+	// Resolves to whether the ship went through, so the dialog only clears the changelog on success
+	async function shipProject(changelog: string): Promise<boolean> {
 		if (changelog.trim().length < 20) {
 			toast.error("Please provide a changelog before shipping.")
-			return
+			return false
 		}
 
 		const project = projectBeingUpdated
-		if (!project) return
+		if (!project) return false
 
 		showRotator = true
 
@@ -135,36 +151,46 @@
 				}),
 				credentials: "include",
 			})
+			// The body can only be read once
+			const responseData = parseShipResponse(await response.text())
 
-			toast(
-				response.ok
-					? "Project shipped successfully!"
-					: `${await response.text()}. Code: ${response.status}`
+			if (!response.ok) {
+				toast.error(
+					`${responseData.message || "Shipping failed"} (code ${response.status})`
+				)
+				return false
+			}
+			// 207: shipped, only the Slack notification failed
+			toast.success(responseData.message || "Project shipped successfully!")
+
+			const updatedProject = {
+				...project,
+				fields: {
+					...project.fields,
+					...(responseData.newLog
+						? { log: JSON.stringify(responseData.newLog) }
+						: {}),
+					...(responseData.newStatus
+						? { status: responseData.newStatus }
+						: {}),
+				},
+			}
+			// The dialog may have been switched to another project while the request was running
+			if (projectBeingUpdated?.id === project.id) {
+				projectBeingUpdated = updatedProject
+			}
+			projects = projects.map(p =>
+				p.id === updatedProject.id ? updatedProject : p
 			)
 
-			const responseData = await response.json()
-
-			if (projectBeingUpdated) {
-				const updatedProject = {
-					...projectBeingUpdated,
-					fields: {
-						...projectBeingUpdated.fields,
-						...(responseData.newLog
-							? { log: JSON.stringify(responseData.newLog) }
-							: {}),
-						...(responseData.newStatus
-							? { status: responseData.newStatus }
-							: {}),
-					},
-				}
-
-				projectBeingUpdated = updatedProject
-				projects = projects.map(p =>
-					p.id === updatedProject.id ? updatedProject : p
-				)
-			}
-
 			await invalidateAll()
+			return true
+		} catch (error) {
+			console.error("Ship request failed:", error)
+			toast.error(
+				"Couldn't reach Alchemize, please check your connection and try again"
+			)
+			return false
 		} finally {
 			showRotator = false
 		}
@@ -345,7 +371,7 @@
 	mode="create"
 	{availableHacks}
 	{invalidater}
-	onship={() => {}}
+	onship={async () => false}
 	onDelete={() => {}}
 />
 

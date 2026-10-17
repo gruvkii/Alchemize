@@ -12,6 +12,7 @@
 	import { Plus, Trash } from "lucide-svelte"
 	import type { Log } from "$lib/types"
 	import { cn } from "$lib/lib/utils"
+	import { PROJECT_TYPES, projectTypeLabel } from "$lib/projectTypes"
 
 	type HackatimeProject = {
 		name?: string
@@ -36,7 +37,8 @@
 		mode: "create" | "update"
 		project?: AirtableProject | null
 		availableHacks: HackatimeProject[]
-		onship: (agr0: string) => void
+		// Resolves to whether the ship went through
+		onship: (changelog: string) => Promise<boolean>
 		showRotator?: boolean
 		invalidater?: () => void
 		onDelete: () => void
@@ -50,7 +52,6 @@
 	let theme = $state("")
 	let hackatime = $state("")
 	let projectUpdate = $state(false)
-	let originalProject: AirtableProject | null = $state(project)
 
 	$effect(() => {
 		name = project?.fields.Name ?? ""
@@ -80,16 +81,40 @@
 
 	let shipLoading = $state(false)
 
-	const ship = () => {
-		if (changelog.trim().length < 20) {
-			toast.error("Please provide a changelog before shipping.")
+	// The server ships the saved project, so this checks the saved fields, not unsaved edits in the form
+	// (same fields as /dashboard/projects/ship requires)
+	const missingShipFields = $derived.by(() => {
+		const fields = project?.fields
+		const required: [label: string, present: unknown][] = [
+			["a description", fields?.description],
+			["a theme", fields?.Theme],
+			["a project type", fields?.type],
+			["a repository link", fields?.code],
+			["a demo link", fields?.demo],
+			["a Hackatime project", fields?.hackatime],
+			["both screenshots", fields?.screenshot && fields?.screenshot2],
+		]
+		return required.filter(([, present]) => !present).map(([label]) => label)
+	})
+
+	const ship = async () => {
+		if (missingShipFields.length > 0) {
+			toast.error(`Add ${missingShipFields.join(", ")} and click Update Project before shipping.`)
+			return
+		}
+		if (changelogCharCount < 20) {
+			toast.error("Please write a changelog of at least 20 characters before shipping.")
 			return
 		}
 
 		shipLoading = true
-		onship(changelog)
-		changelog = ""
-		shipLoading = false
+		try {
+			if (await onship(changelog)) {
+				changelog = ""
+			}
+		} finally {
+			shipLoading = false
+		}
 	}
 
 	const hoursShipped = $derived(Math.floor((shippedTime * 10) / 60) / 10)
@@ -142,32 +167,6 @@
 	let allFieldsFilled = $derived(
 		name && description && descriptionCharCount >= 50
 	)
-
-	let shipButtonDisabled = $derived(
-		!(
-			changelogCharCount >= 20 &&
-			originalProject?.fields.Theme &&
-			originalProject?.fields.type &&
-			originalProject?.fields.code &&
-			originalProject?.fields.demo &&
-			originalProject?.fields.screenshot &&
-			originalProject?.fields.screenshot2 &&
-			originalProject.fields.hackatime
-		)
-	)
-
-	$effect(() => {
-		shipButtonDisabled = !(
-			changelogCharCount >= 20 &&
-			originalProject?.fields.Theme &&
-			originalProject?.fields.type &&
-			originalProject?.fields.code &&
-			originalProject?.fields.demo &&
-			originalProject?.fields.screenshot &&
-			originalProject?.fields.screenshot2 &&
-			originalProject.fields.hackatime
-		)
-	})
 </script>
 
 <Dialog.Root bind:open>
@@ -222,7 +221,7 @@
 							<p
 								class="font-display text-sm font-bold text-foreground capitalize"
 							>
-								{type || "—"}
+								{type ? projectTypeLabel(type) : "—"}
 							</p>
 						</div>
 					</div>
@@ -342,9 +341,10 @@
 						<Button
 							variant="primary"
 							class="w-full h-10 font-display font-bold uppercase tracking-wider text-xs"
-							// onclick={ship}
+							onclick={ship}
+							disabled={shipLoading || showRotator}
 						>
-							{#if showRotator}
+							{#if shipLoading || showRotator}
 								<div
 									class="size-4 border-2 border-muted-foreground border-t-primary-foreground rounded-full animate-spin mr-2"
 								></div>
@@ -632,13 +632,9 @@
 											<option value="" disabled selected={!type}>
 												Choose Type
 											</option>
-											<option value="web">Web Playable</option>
-											<option value="mobile">Mobile App</option>
-											<option value="desktop">Desktop App</option>
-											<option value="terminal">Terminal App</option>
-											<option value="terminal">
-												Cross platform playable
-											</option>
+											{#each PROJECT_TYPES as projectType}
+												<option value={projectType.value}>{projectType.label}</option>
+											{/each}
 										</select>
 									</div>
 

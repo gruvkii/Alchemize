@@ -13,9 +13,12 @@
 	let {
 		open = $bindable(false),
 		orders = [],
+		unavailable = false,
 	}: {
 		open: boolean
 		orders: Order[]
+		// The orders couldn't be loaded, so an empty list doesn't mean "no orders"
+		unavailable?: boolean
 	} = $props()
 </script>
 
@@ -97,7 +100,9 @@
 				{:else}
 					<div class="flex flex-col items-center justify-center flex-1 py-12">
 						<p class="font-note text-muted-foreground text-sm">
-							No orders yet...
+							{unavailable
+								? "Your orders couldn't be loaded right now, please try again later."
+								: "No orders yet..."}
 						</p>
 					</div>
 				{/each}

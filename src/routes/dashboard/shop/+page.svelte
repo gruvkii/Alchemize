@@ -287,7 +287,11 @@
 		onConfirm={handleConfirmPurchase}
 	/>
 
-	<OrdersDialog bind:open={ordersDialogOpen} orders={data.orders ?? []} />
+	<OrdersDialog
+		bind:open={ordersDialogOpen}
+		orders={data.orders ?? []}
+		unavailable={data.ordersUnavailable}
+	/>
 {/if}
 
 <style>
