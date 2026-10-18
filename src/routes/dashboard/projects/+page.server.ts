@@ -29,10 +29,10 @@ async function uploadScreenshot(file: File | null): Promise<string> {
 	const body = new FormData()
 	body.append("file", file)
 
-	const response = await fetch("https://cdn.hackclub.com/api/v4/upload", {
+	const response = await fetch("https://notifications.alchemize.hackclub.com/cdn/upload", {
 		method: "POST",
 		headers: {
-			Authorization: `Bearer ${env.CDN_UPLOAD_SECRET}`,
+			Authorization: `Bearer ${env.BOT_AUTH}`,
 		},
 		body,
 	})
