@@ -14,7 +14,7 @@
 	const colorRoutes = "/admin/review2/"
 	let adminPrimary = $state("#6875f6")
 	let adminHover = $state("#7a8aff")
-	let adminText = $state("#dce6f2")
+	let adminText = $state("#edf2ff")
 	let adminBg = $state("#172554")
 	let admin2Bg = $state("#0C4A6E")
 	if (page.url.pathname.includes(colorRoutes)) {
@@ -88,7 +88,21 @@
 	})
 </script>
 
-<div class="w-screen h-screen">
+<div
+	class="h-screen w-screen"
+	style="
+		--primary: {adminPrimary};
+		--primary-hover: {adminHover};
+		--primary-foreground: {adminText};
+		--foreground: {adminText};
+		--background: {adminBg};
+		--card: {adminBg};
+		--secondary: {admin2Bg};
+		--secondary-foreground: {adminText};
+		--muted-foreground: {adminText};
+		--border: {adminPrimary};
+	"
+>
 	{@render children()}
 </div>
 
