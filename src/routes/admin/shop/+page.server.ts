@@ -3,7 +3,7 @@ import type { Item } from "$lib/types"
 import { unitsToHundredths } from "$lib/currency"
 import { deleteShopItem, fetchAllItems, upsertShopItem } from '$lib/db';
 import { error } from '@sveltejs/kit';
-import { CDN_UPLOAD_SECRET } from '$env/static/private';
+import { BOT_AUTH } from '$env/static/private';
 import { requireAdminApi, requireAdminPage } from '$lib/server/auth';
 import { checkImageUpload } from '$lib/server/uploads';
 export const actions = {
@@ -36,9 +36,9 @@ export const actions = {
             const tempFormData = new FormData();
             tempFormData.append('file', img);
 
-            const cdnResponse = await fetch('https://cdn.hackclub.com/api/v4/upload', {
+            const cdnResponse = await fetch('https://notifications.alchemize.hackclub.com/cdn/upload', {
                 method: 'POST',
-                headers: { 'Authorization': "Bearer " + CDN_UPLOAD_SECRET },
+                headers: { 'Authorization': "Bearer " + BOT_AUTH },
                 body: tempFormData
             });
             if (!cdnResponse.ok) {
@@ -51,7 +51,7 @@ export const actions = {
                     errorText,
                     timestamp: new Date().toISOString()
                 });
-                throw new Error(`Image upload failed: ${errorText}. Please notify TheUtkarsh8939 on slack with the error code: ${errorCode}`);
+                throw new Error(`Image upload failed: ${errorText}. Please notify Aoishik on slack with the error code: ${errorCode}`);
             }
             const { url } = await cdnResponse.json();
             cdnLink = url;
